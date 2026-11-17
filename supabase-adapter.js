@@ -4,6 +4,7 @@
    window.AmaanCloud.signOut()     -> signs out of the cloud and reloads */
 (function(){
   var cfg=window.AMAAN_CONFIG||{};
+  var TBL=cfg.TABLE||'docs';
   var sb=null,uid=null,cache={},loaded={},subs={},docSubs={},pend={},channel=null,onErr=[];
 
   function configured(){return !!(cfg.SUPABASE_URL&&cfg.SUPABASE_ANON_KEY&&window.supabase)}
@@ -28,7 +29,7 @@
   async function loadCol(n){
     var from=0,step=1000,c={};
     for(;;){
-      var r=await client().from('docs').select('id,data').eq('coll',n).order('id').range(from,from+step-1);
+      var r=await client().from(TBL).select('id,data').eq('coll',n).order('id').range(from,from+step-1);
       if(r.error)throw r.error;
       r.data.forEach(function(row){c[row.id]=row.data});
       if(r.data.length<step)break;from+=step;
@@ -43,7 +44,7 @@
   }
   function listen(){
     if(channel)return;
-    channel=client().channel('docs-'+uid).on('postgres_changes',{event:'*',schema:'public',table:'docs',filter:'owner=eq.'+uid},function(p){
+    channel=client().channel(TBL+'-'+uid).on('postgres_changes',{event:'*',schema:'public',table:TBL,filter:'owner=eq.'+uid},function(p){
       var row=p.eventType==='DELETE'?p.old:p.new;if(!row)return;
       var n=row.coll;if(!loaded[n]||loaded[n]==='loading')return;
       var id=row.id,c=col(n);
@@ -65,7 +66,7 @@
   }
   function put(n,id,d){
     col(n)[id]=d;
-    return write(n,id,function(){return client().from('docs').upsert({owner:uid,coll:n,id:id,data:d,updated_at:new Date().toISOString()},{onConflict:'owner,coll,id'})});
+    return write(n,id,function(){return client().from(TBL).upsert({owner:uid,coll:n,id:id,data:d,updated_at:new Date().toISOString()},{onConflict:'owner,coll,id'})});
   }
   function clean(d){return JSON.parse(JSON.stringify(d))}
 
@@ -73,7 +74,7 @@
     return {id:id,
       set:function(d){return put(n,id,clean(d))},
       update:function(d){var cur=col(n)[id]||{};return put(n,id,Object.assign({},cur,clean(d)))},
-      delete:function(){delete col(n)[id];return write(n,id,function(){return client().from('docs').delete().eq('coll',n).eq('id',id)})},
+      delete:function(){delete col(n)[id];return write(n,id,function(){return client().from(TBL).delete().eq('coll',n).eq('id',id)})},
       onSnapshot:function(f,e){
         var m=docSubs[n]||(docSubs[n]={});(m[id]||(m[id]=[])).push({f:f});
         if(loaded[n]===true)emitDoc(n,id);else ensure(n,e);
@@ -101,7 +102,7 @@
         var w=document.createElement('div');
         w.style.cssText='position:fixed;inset:0;z-index:99999;background:linear-gradient(135deg,#0f766e,#4f46e5);display:flex;align-items:center;justify-content:center;font-family:Inter,system-ui,sans-serif;padding:16px';
         w.innerHTML='<form style="background:#fff;border-radius:18px;padding:28px;width:100%;max-width:360px;box-shadow:0 20px 60px rgba(0,0,0,.3)">'
-          +'<div style="font-size:20px;font-weight:700;color:#0f172a">Amaan Home Budgeting</div>'
+          +'<div style="font-size:20px;font-weight:700;color:#0f172a">Amaan ERP</div>'
           +'<div style="font-size:13px;color:#64748b;margin:4px 0 18px">Sign in to your cloud account</div>'
           +'<input name=e type=email required placeholder="Email" autocomplete="username" style="width:100%;box-sizing:border-box;padding:11px 12px;border:1px solid #cbd5e1;border-radius:10px;font-size:15px;margin-bottom:10px">'
           +'<input name=p type=password required placeholder="Password" autocomplete="current-password" style="width:100%;box-sizing:border-box;padding:11px 12px;border:1px solid #cbd5e1;border-radius:10px;font-size:15px;margin-bottom:10px">'
