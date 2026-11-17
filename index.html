@@ -3650,7 +3650,7 @@ function viewAcct(v){
   var meta=el('div',null,'@'+me.username+' · '+roleLabel(me.role));meta.style.cssText='color:var(--muted);font-size:13px';mid.appendChild(meta);row.appendChild(mid);
   var acts=el('div','acts'),ed=el('button','ib');ed.innerHTML=ic('edit');ed.setAttribute('aria-label','Edit your name');
   ed.onclick=function(){inlineEdit(nm,me.name,function(val){return S.db.doc('users/'+me.id).update({name:val})})};acts.appendChild(ed);row.appendChild(acts);pc.appendChild(row);
-  var so=el('button','btn','Sign out');so.style.marginTop='14px';so.onclick=signOut;pc.appendChild(so);if(S.cloud){var co2=el('button','btn','Sign out of cloud');co2.style.marginTop='14px';co2.style.marginLeft='8px';co2.onclick=function(){AmaanCloud.signOut()};pc.appendChild(co2)}g.appendChild(pc);
+  if(S.cloud){var ce=el('div','sub','Cloud login: '+(S.cloudEmail||'')+' · Synced ledger shared by all your logins');ce.style.marginTop='12px';pc.appendChild(ce)}var so=el('button','btn','Sign out');so.style.marginTop='14px';so.onclick=signOut;pc.appendChild(so);if(S.cloud){var co2=el('button','btn','Sign out of cloud');co2.style.marginTop='14px';co2.style.marginLeft='8px';co2.onclick=function(){AmaanCloud.signOut()};pc.appendChild(co2)}g.appendChild(pc);
 
   var pw=card('span2','Change password','Use at least 6 characters.'),pf=el('form','f');
   pf.appendChild(fld('Current password','pw-cur','password','current-password',true));pf.appendChild(fld('New password','pw-new','password','new-password',true));pf.appendChild(fld('Confirm new password','pw-new2','password','new-password',true));
@@ -3882,14 +3882,21 @@ async function seedDefaults(){
 async function boot(){
   var db=null,user=null;
   try{S.lastWallet=localStorage.getItem('amaan-lastwallet')||'cash'}catch(e){}
-  if(window.AmaanCloud&&AmaanCloud.configured()){try{db=await AmaanCloud.start();S.cloud=true;db.onError(function(){S.syncOff=true;setSync()})}catch(e){console.error(e)}}
+  if(window.AmaanCloud&&AmaanCloud.configured()){try{db=await AmaanCloud.start();S.cloud=true;S.cloudEmail=db.email||'';db.onError(function(){S.syncOff=true;setSync()})}catch(e){console.error(e);S.cloudWhy='Cloud login failed: '+(e&&e.message||e)}}
+  else if(window.AmaanCloud&&/^https?:/.test(location.protocol)&&location.hostname!=='localhost')S.cloudWhy='Cloud is NOT connected: config.js on GitHub has no Supabase URL / anon key (or it was not saved). The site owner must fill config.js and redeploy.'
   if(!db){try{db=await claude.use('db')}catch(e){}
   try{user=await claude.use('user')}catch(e){}}
   if(user){try{if(user.can('data.write')===false)S.baseWrite=false}catch(e){}try{S.isOwner=!!user.isOwner()}catch(e){}}
   var n=$('notice');
+  if(!db&&S.cloudWhy){
+    document.body.classList.add('locked');var au=$('auth');au.hidden=false;au.textContent='';
+    var cd=el('div','authcard');cd.appendChild(el('h2',null,'Amaan ERP'));cd.appendChild(el('p',null,S.cloudWhy));
+    cd.appendChild(el('p',null,'For safety the app will not run in local-only mode, so nobody can create a separate admin or separate data on this device.'));
+    var rb=el('button','btn p','Retry');rb.onclick=function(){location.reload()};cd.appendChild(rb);au.appendChild(cd);return;
+  }
   if(!db){
     db=memDb();S.syncOff=true;
-    n.hidden=false;n.textContent='Sync is off here, so entries are saved only in this browser on this device. To sync between your phone and laptop, open the app from your Claude account while signed in.';
+    n.hidden=false;n.textContent=S.cloudWhy||'Sync is off here, so entries are saved only in this browser on this device.';
   }else if(S.baseWrite===false){n.hidden=false;n.textContent='You can view this ledger but not change it. Ask the owner for Contributor access.'}
   S.db=db;setSync();
   watch('users','users');watch('moves','moves');watch('jvs','jvs');watch('cats','cats');watch('subs','subs');watch('items','items');watch('tx','tx');watch('accts','accts');watch('sav','sav');watch('stock','stock');watch('stockitems','stockitems');watch('stockexp','stockexp');watch('stockunits','stockunits');watch('lvanimals','lvanimals');watch('lv','lv');
