@@ -1871,17 +1871,26 @@ function viewSav(v){
   var wrap=el('div','span4');g.appendChild(wrap);
   wrap.appendChild(walletTable(r));
 
-  var un=E.filter(function(e){return !e.virtual&&!W[e.wallet]});
+  var un=[];
+  E.forEach(function(e){if(!e.virtual&&!W[e.wallet])un.push({c:'tx',id:e.id,f:'wallet',what:'Entry · '+(e.item||'')+' · '+(e.date||''),v:(e.kind==='income'?1:-1)*(+e.amount||0)})});
+  K.rows.forEach(function(r){if(!r.orph&&r.wallet&&!W[r.wallet])un.push({c:'stock',id:r.id,f:'wallet',what:'Stock · '+(r.itm||'')+' · '+(r.date||''),v:0})});
+  LV.rows.forEach(function(r){if(!r.orph&&r.wallet&&!W[r.wallet])un.push({c:r.src==='lva'?'lvanimals':'lv',id:r.id,f:'wallet',what:'Livestock · '+(r.date||''),v:0})});
+  S.moves.forEach(function(m){['from','to'].forEach(function(k){if(m[k]&&!W[m[k]])un.push({c:'moves',id:m.id,f:k,what:'Move · '+(m.date||'')+' · '+k,v:0})})});
+  S.sav.forEach(function(x){if(x.accId&&!W[x.accId])un.push({c:'sav',id:x.id,f:'accId',what:'Bank deposit/profit · '+(x.date||''),v:0})});
   if(un.length){
-    var uc=card('span4','Older entries are not linked to cash or a bank',un.length+(un.length===1?' entry does':' entries do')+' not say whether it was paid in cash or through a bank, so it is not part of any balance above.');
+    var uc=card('span4','Entries not linked to a valid cash or bank account',un.length+(un.length===1?' record is':' records are')+' not linked to an existing account (older entries, or an account that was deleted). They sit in “Unallocated” in the ledger. Choose the account they belong to and link them.');
     if(S.canWrite){
       var row=el('div','row2');
       var sel=el('select');sel.setAttribute('aria-label','Link entries to');walletIds().forEach(function(id){opt(sel,id,wName(id))});
       sel.style.cssText='border:1px solid var(--line);background:var(--page);border-radius:10px;padding:8px 10px';
       var lb=el('button','btn p','Link all to this account');
-      lb.onclick=function(){var target=sel.value;askYes(row,'Link '+un.length+(un.length===1?' entry':' entries')+' to '+wName(target)+'?','Link',async function(){await runBatches(un.map(function(e){return function(){return S.db.doc('tx/'+e.id).update({wallet:target})}}));toast('Entries linked')})};
+      lb.onclick=function(){var target=sel.value;askYes(row,'Link '+un.length+(un.length===1?' record':' records')+' to '+wName(target)+'?','Link',async function(){await runBatches(un.map(function(e){return function(){var d={};d[e.f]=target;return S.db.doc(e.c+'/'+e.id).update(d)}}));toast('Records linked')})};
       row.appendChild(sel);row.appendChild(lb);uc.appendChild(row);
     }
+    var ls=el('div','sub');ls.style.cssText='margin-top:12px;max-height:180px;overflow:auto';
+    un.slice(0,40).forEach(function(e){ls.appendChild(el('div',null,e.what))});
+    if(un.length>40)ls.appendChild(el('div',null,'… and '+(un.length-40)+' more'));
+    uc.appendChild(ls);
     g.appendChild(uc);
   }
 }
