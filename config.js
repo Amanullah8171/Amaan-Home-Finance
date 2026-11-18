@@ -1,6 +1,5 @@
-/* Supabase settings. Fill these two values (Supabase > Project Settings > API).
-   The anon key is meant to be public; your data is protected by login + Row Level Security. */
 window.AMAAN_CONFIG = {
-  SUPABASE_URL: '',
-  SUPABASE_ANON_KEY: ''
+  SUPABASE_URL: 'https://fvtrcyldchutixhfdjqd.supabase.co',
+  SUPABASE_ANON_KEY: 'یہاں_anon_key',
+  TABLE: 'docs'
 };
