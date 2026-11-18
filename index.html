@@ -3559,11 +3559,12 @@ function saveSession(u){try{localStorage.setItem(SKEY,JSON.stringify({uid:u.id,h
 function loadSession(){try{return JSON.parse(localStorage.getItem(SKEY)||'null')}catch(e){return null}}
 function clearSession(){try{localStorage.removeItem(SKEY)}catch(e){}}
 function applySession(){
+  if(S.cloud&&S.me){applyRole();return}
   var se=loadSession(),u=null,had=!!S.me;
   if(se){u=S.users.filter(function(x){return x.id===se.uid})[0]||null;if(u&&String(u.hash).slice(0,12)!==se.h)u=null;if(!u){clearSession();if(had)S.authNote='Your sign-in changed. Please sign in again.'}}
   S.me=u;applyRole();
 }
-function signOut(){clearSession();S.me=null;S.authMode=null;S.tab='dash';S.editing=false;applyRole();render()}
+function signOut(){if(S.cloud){AmaanCloud.signOut();return}clearSession();S.me=null;S.authMode=null;S.tab='dash';S.editing=false;applyRole();render()}
 function renderMe(){
   var b=$('meBtn');
   if(S.me){b.hidden=false;b.textContent=(S.me.name||'?').trim().charAt(0).toUpperCase();b.title=S.me.name+' · '+roleLabel(S.me.role)}else b.hidden=true;
@@ -3649,8 +3650,8 @@ function viewAcct(v){
   var mid=el('div'),nm=el('b',null,me.name);nm.style.fontSize='17px';mid.appendChild(nm);
   var meta=el('div',null,'@'+me.username+' · '+roleLabel(me.role));meta.style.cssText='color:var(--muted);font-size:13px';mid.appendChild(meta);row.appendChild(mid);
   var acts=el('div','acts'),ed=el('button','ib');ed.innerHTML=ic('edit');ed.setAttribute('aria-label','Edit your name');
-  ed.onclick=function(){inlineEdit(nm,me.name,function(val){return S.db.doc('users/'+me.id).update({name:val})})};acts.appendChild(ed);row.appendChild(acts);pc.appendChild(row);
-  if(S.cloud){var ce=el('div','sub','Cloud login: '+(S.cloudEmail||'')+' · Synced ledger shared by all your logins');ce.style.marginTop='12px';pc.appendChild(ce)}var so=el('button','btn','Sign out');so.style.marginTop='14px';so.onclick=signOut;pc.appendChild(so);if(S.cloud){var co2=el('button','btn','Sign out of cloud');co2.style.marginTop='14px';co2.style.marginLeft='8px';co2.onclick=function(){AmaanCloud.signOut()};pc.appendChild(co2)}g.appendChild(pc);
+  ed.onclick=function(){inlineEdit(nm,me.name,function(val){return S.db.doc('users/'+me.id).update({name:val})})};if(!S.cloud)acts.appendChild(ed);row.appendChild(acts);pc.appendChild(row);
+  if(S.cloud){var ce=el('div','sub','Cloud login: '+(S.cloudEmail||'')+' · Signed in with your cloud account');ce.style.marginTop='12px';pc.appendChild(ce)}var so=el('button','btn','Sign out');so.style.marginTop='14px';so.onclick=signOut;pc.appendChild(so);g.appendChild(pc);
 
   var pw=card('span2','Change password','Use at least 6 characters.'),pf=el('form','f');
   pf.appendChild(fld('Current password','pw-cur','password','current-password',true));pf.appendChild(fld('New password','pw-new','password','new-password',true));pf.appendChild(fld('Confirm new password','pw-new2','password','new-password',true));
@@ -3659,6 +3660,12 @@ function viewAcct(v){
   pf.addEventListener('submit',async function(ev){
     ev.preventDefault();pe.textContent='';
     var cu=$('pw-cur').value,n1=$('pw-new').value,n2=$('pw-new2').value;
+    if(S.cloud){
+      if(n1.length<6){pe.textContent='New password must be at least 6 characters.';return}
+      if(n1!==n2){pe.textContent='The new passwords do not match.';return}
+      pb.disabled=true;try{await AmaanCloud.changePassword(n1);toast('Password changed');pf.reset()}catch(e3){pe.textContent=(e3&&e3.message)||'Could not change the password.'}
+      pb.disabled=false;return;
+    }
     if(!cu||!n1){pe.textContent='Fill in all three fields.';return}
     if(n1.length<6){pe.textContent='New password must be at least 6 characters.';return}
     if(n1!==n2){pe.textContent='The new passwords do not match.';return}
@@ -3674,6 +3681,39 @@ function viewAcct(v){
   });
   pw.appendChild(pf);g.appendChild(pw);
 
+  if(S.cloud&&isAdmin()){
+    var pc2=card('span4','People who can sign in','Add a person here, then send them the link, their email and the password you set. Admins manage people. Members add and edit entries. Viewers can only look.');
+    var pbox=el('div');
+    function pmsg(t,bad){var d=el('div',bad?'err':'sub',t);return d}
+    function pload(){
+      pbox.textContent='';pbox.appendChild(pmsg('Loading…'));
+      AmaanCloud.api('list').then(function(r){
+        pbox.textContent='';
+        r.users.forEach(function(u){
+          var row=el('div','urow');row.appendChild(el('div','av',(u.name||'?').trim().charAt(0).toUpperCase()));
+          var mid=el('div'),nb=el('b',null,u.name+(u.owner?' (owner)':''));mid.appendChild(nb);
+          var mt=el('div',null,u.email);mt.style.cssText='color:var(--muted);font-size:13px';mid.appendChild(mt);row.appendChild(mid);
+          var ac=el('div','acts'),sel=el('select');['admin','member','viewer'].forEach(function(x){var o=el('option',null,roleLabel(x));o.value=x;sel.appendChild(o)});
+          sel.value=u.role;sel.setAttribute('aria-label','Role for '+u.name);sel.disabled=u.owner||u.email===S.cloudEmail;
+          sel.onchange=function(){AmaanCloud.api('update',{id:u.id,role:sel.value}).then(function(){toast('Role updated')},function(e){toast(e.message);pload()})};
+          ac.appendChild(sel);
+          var rp=el('button','btn','Set password');rp.onclick=function(){var np=window.prompt('New password for '+u.email+' (6+ characters):');if(!np)return;AmaanCloud.api('update',{id:u.id,password:np}).then(function(){toast('Password changed')},function(e){toast(e.message)})};ac.appendChild(rp);
+          if(!u.owner&&u.email!==S.cloudEmail){var dl=el('button','ib');dl.innerHTML=ic('trash');dl.setAttribute('aria-label','Remove '+u.name);dl.onclick=function(){askDelete(ac,'Remove '+u.name+'?',function(){return AmaanCloud.api('delete',{id:u.id}).then(function(){toast('Person removed');pload()})})};ac.appendChild(dl)}
+          row.appendChild(ac);pbox.appendChild(row);
+        });
+      }).catch(function(e){pbox.textContent='';pbox.appendChild(pmsg(e.message,true))});
+    }
+    pc2.appendChild(pbox);pload();
+    var af=el('form','f');af.style.marginTop='16px';af.appendChild(el('div','sub','Add a person'));
+    af.appendChild(fld('Name','np-name','text','off'));af.appendChild(fld('Email','np-email','email','off'));af.appendChild(fld('Password (6+ characters)','np-pass','text','off'));
+    var rs=el('select');rs.id='np-role';['member','viewer','admin'].forEach(function(x){var o=el('option',null,roleLabel(x));o.value=x;rs.appendChild(o)});
+    var rd=el('div');var rl=el('label',null,'Role');rl.htmlFor='np-role';rd.appendChild(rl);rd.appendChild(rs);af.appendChild(rd);
+    var ae=el('div','err');ae.setAttribute('role','alert');af.appendChild(ae);
+    var ab=el('button','btn p','Add person');ab.type='submit';af.appendChild(ab);
+    af.addEventListener('submit',function(ev){ev.preventDefault();ae.textContent='';ab.disabled=true;
+      AmaanCloud.api('create',{name:$('np-name').value,email:$('np-email').value,password:$('np-pass').value,role:rs.value}).then(function(){toast('Person added');af.reset();pload()},function(e){ae.textContent=e.message}).then(function(){ab.disabled=false})});
+    pc2.appendChild(af);g.appendChild(pc2);return;
+  }
   if(!isAdmin())return;
   var uc=card('span4','People who can sign in','Admins manage people. Members add and edit entries. Viewers can only look.'),admins=S.users.filter(function(u){return u.role==='admin'}).length;
   S.users.slice().sort(byTs).forEach(function(u){
@@ -3716,7 +3756,7 @@ function viewAcct(v){
 function render(){
   if(S.editing){S.dirty=true;return}
   S.dirty=false;index();
-  if(!S.loaded.users||!S.me){showAuth();return}hideAuth();ensureMainCats();ensureCodes();
+  if(!S.cloud&&(!S.loaded.users||!S.me)){showAuth();return}hideAuth();ensureMainCats();ensureCodes();
   var v=$('view');v.textContent='';
   $('title').textContent=S.tab==='dash'?greeting():TITLES[S.tab];
   $('subtitle').textContent=S.tab==='dash'?new Date().toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long',year:'numeric'}):'';
@@ -3882,7 +3922,7 @@ async function seedDefaults(){
 async function boot(){
   var db=null,user=null;
   try{S.lastWallet=localStorage.getItem('amaan-lastwallet')||'cash'}catch(e){}
-  if(window.AmaanCloud&&AmaanCloud.configured()){try{db=await AmaanCloud.start();S.cloud=true;S.cloudEmail=db.email||'';db.onError(function(){S.syncOff=true;setSync()})}catch(e){console.error(e);S.cloudWhy='Cloud login failed: '+(e&&e.message||e)}}
+  if(window.AmaanCloud&&AmaanCloud.configured()){try{db=await AmaanCloud.start();S.cloud=true;S.cloudEmail=db.email||'';var meSrv=await AmaanCloud.getMe();(function(){var em=String(db.email||'').toLowerCase(),C=window.AMAAN_CONFIG||{},ad=(C.ADMIN_EMAILS||[]).map(function(x){return String(x).toLowerCase()}),vw=(C.VIEWER_EMAILS||[]).map(function(x){return String(x).toLowerCase()});var role=vw.indexOf(em)>=0?'viewer':(!ad.length||ad.indexOf(em)>=0)?'admin':'member';var nm=em.split('@')[0].replace(/[._-]+/g,' ').replace(/\b\w/g,function(c){return c.toUpperCase()});if(meSrv&&meSrv.role){role=meSrv.role;nm=meSrv.name||nm;S.cloudApi=true}S.me={id:'cloud:'+em,name:nm||em,username:em,role:role,cloud:true};applyRole()})();db.onError(function(){S.syncOff=true;setSync()})}catch(e){console.error(e);S.cloudWhy='Cloud login failed: '+(e&&e.message||e)}}
   else if(window.AmaanCloud&&/^https?:/.test(location.protocol)&&location.hostname!=='localhost')S.cloudWhy='Cloud is NOT connected: config.js on GitHub has no Supabase URL / anon key (or it was not saved). The site owner must fill config.js and redeploy.'
   if(!db){try{db=await claude.use('db')}catch(e){}
   try{user=await claude.use('user')}catch(e){}}

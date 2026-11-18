@@ -44,7 +44,7 @@
   }
   function listen(){
     if(channel)return;
-    channel=client().channel(TBL+'-'+uid).on('postgres_changes',{event:'*',schema:'public',table:TBL,filter:'owner=eq.'+uid},function(p){
+    channel=client().channel(TBL+'-'+uid).on('postgres_changes',{event:'*',schema:'public',table:TBL},function(p){
       var row=p.eventType==='DELETE'?p.old:p.new;if(!row)return;
       var n=row.coll;if(!loaded[n]||loaded[n]==='loading')return;
       var id=row.id,c=col(n);
@@ -66,7 +66,7 @@
   }
   function put(n,id,d){
     col(n)[id]=d;
-    return write(n,id,function(){return client().from(TBL).upsert({owner:uid,coll:n,id:id,data:d,updated_at:new Date().toISOString()},{onConflict:'owner,coll,id'})});
+    return write(n,id,function(){return client().from(TBL).upsert({owner:uid,coll:n,id:id,data:d,updated_at:new Date().toISOString()},{onConflict:'coll,id'})});
   }
   function clean(d){return JSON.parse(JSON.stringify(d))}
 
@@ -128,6 +128,15 @@
       listen();
       var db=makeDb();db.email=session.user.email;return db;
     },
+    api:async function(action,body){
+      var s=(await client().auth.getSession()).data.session;if(!s)throw new Error('Not signed in');
+      var r=await fetch('/api/users'+(body?'':'?action='+encodeURIComponent(action)),{method:body?'POST':'GET',headers:{'Content-Type':'application/json',Authorization:'Bearer '+s.access_token},body:body?JSON.stringify(Object.assign({action:action},body)):undefined});
+      var j=null;try{j=await r.json()}catch(e){}
+      if(!r.ok)throw new Error((j&&j.error)||(r.status===404?'User service not found: upload the api folder to GitHub and redeploy.':'Request failed ('+r.status+')'));
+      return j;
+    },
+    getMe:async function(){try{return await window.AmaanCloud.api('me')}catch(e){return null}},
+    changePassword:async function(pw){var r=await client().auth.updateUser({password:pw});if(r.error)throw r.error},
     signOut:async function(){try{await client().auth.signOut()}catch(e){}location.reload()}
   };
 })();
