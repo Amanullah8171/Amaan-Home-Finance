@@ -340,6 +340,7 @@ button.code{cursor:pointer;margin-left:0}button.code:hover{border-color:var(--mu
 .jv tr:last-child td{border-bottom:0}
 tr.tot td{font-weight:800;border-top:2px solid var(--ink)}
 .okc{color:var(--good)}
+.stg{margin:0 0 12px;border:1px solid var(--line);border-radius:12px;background:var(--page);padding:4px 12px}.stg .r{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 0;font-size:14px}.stg .r+.r{border-top:1px solid var(--line)}.stg .tot{font-weight:700}.stg .x{border:0;background:none;color:var(--muted);font-size:20px;line-height:1;cursor:pointer;padding:0 4px}.stg .l{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .post{font-size:12px;color:var(--ink2);margin-top:6px;background:var(--page);border:1px dashed var(--line);border-radius:8px;padding:6px 10px;overflow-wrap:anywhere}
 .post:empty{display:none}
 .fs .r{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px dashed var(--line);font-variant-numeric:tabular-nums}
@@ -888,6 +889,7 @@ body::after{content:"";position:fixed;inset:6px;border-radius:18px;pointer-event
       <button type="button" data-kind="expense" aria-pressed="true">Expense</button>
       <button type="button" data-kind="income" aria-pressed="false">Income</button>
     </div>
+    <div class="stg" id="f-lines" hidden></div>
     <div class="f">
       <div><label for="f-amount">Amount</label><input class="big" id="f-amount" type="number" inputmode="decimal" min="0" step="any" placeholder="0"></div>
       <div><label for="f-wallet" id="l-wallet">Paid from</label><select id="f-wallet"></select><div class="hint" id="f-whint"></div><div class="post" id="f-post"></div></div>
@@ -902,6 +904,7 @@ body::after{content:"";position:fixed;inset:6px;border-radius:18px;pointer-event
         <div><label for="f-date">Date</label><input id="f-date" type="date"></div>
         <div><label for="f-note">Note (optional)</label><input id="f-note" maxlength="80"></div>
       </div>
+      <div><button type="button" class="btn" id="f-more" style="width:100%">＋ Add another item</button></div>
       <div class="err" id="f-err" role="alert"></div>
     </div>
     <div class="btns"><button type="button" class="btn" id="f-cancel">Cancel</button><button type="submit" class="btn p" id="f-save">Save entry</button></div>
@@ -3692,12 +3695,12 @@ function viewAcct(v){
         r.users.forEach(function(u){
           var row=el('div','urow');row.appendChild(el('div','av',(u.name||'?').trim().charAt(0).toUpperCase()));
           var mid=el('div'),nb=el('b',null,u.name+(u.owner?' (owner)':''));mid.appendChild(nb);
-          var mt=el('div',null,u.email);mt.style.cssText='color:var(--muted);font-size:13px';mid.appendChild(mt);row.appendChild(mid);
+          var mt=el('div',null,u.email.replace(/@amaan\.app$/,''));mt.style.cssText='color:var(--muted);font-size:13px';mid.appendChild(mt);row.appendChild(mid);
           var ac=el('div','acts'),sel=el('select');['admin','member','viewer'].forEach(function(x){var o=el('option',null,roleLabel(x));o.value=x;sel.appendChild(o)});
           sel.value=u.role;sel.setAttribute('aria-label','Role for '+u.name);sel.disabled=u.owner||u.email===S.cloudEmail;
           sel.onchange=function(){AmaanCloud.api('update',{id:u.id,role:sel.value}).then(function(){toast('Role updated')},function(e){toast(e.message);pload()})};
           ac.appendChild(sel);
-          var rp=el('button','btn','Set password');rp.onclick=function(){var np=window.prompt('New password for '+u.email+' (6+ characters):');if(!np)return;AmaanCloud.api('update',{id:u.id,password:np}).then(function(){toast('Password changed')},function(e){toast(e.message)})};ac.appendChild(rp);
+          var rn=el('button','btn','Rename');rn.onclick=function(){var nn=window.prompt('Display name for '+u.email.replace(/@amaan\.app$/,'')+':',u.name);if(!nn||!nn.trim())return;AmaanCloud.api('update',{id:u.id,name:nn.trim()}).then(function(){toast('Name updated');pload()},function(e){toast(e.message)})};ac.appendChild(rn);var rp=el('button','btn','Set password');rp.onclick=function(){var np=window.prompt('New password for '+u.email+' (6+ characters):');if(!np)return;AmaanCloud.api('update',{id:u.id,password:np}).then(function(){toast('Password changed')},function(e){toast(e.message)})};ac.appendChild(rp);
           if(!u.owner&&u.email!==S.cloudEmail){var dl=el('button','ib');dl.innerHTML=ic('trash');dl.setAttribute('aria-label','Remove '+u.name);dl.onclick=function(){askDelete(ac,'Remove '+u.name+'?',function(){return AmaanCloud.api('delete',{id:u.id}).then(function(){toast('Person removed');pload()})})};ac.appendChild(dl)}
           row.appendChild(ac);pbox.appendChild(row);
         });
@@ -3705,7 +3708,7 @@ function viewAcct(v){
     }
     pc2.appendChild(pbox);pload();
     var af=el('form','f');af.style.marginTop='16px';af.appendChild(el('div','sub','Add a person'));
-    af.appendChild(fld('Name','np-name','text','off'));af.appendChild(fld('Email','np-email','email','off'));af.appendChild(fld('Password (6+ characters)','np-pass','text','off'));
+    af.appendChild(fld('Name','np-name','text','off'));af.appendChild(fld('Username or email','np-email','text','off'));af.appendChild(fld('Password (6+ characters)','np-pass','text','off'));
     var rs=el('select');rs.id='np-role';['member','viewer','admin'].forEach(function(x){var o=el('option',null,roleLabel(x));o.value=x;rs.appendChild(o)});
     var rd=el('div');var rl=el('label',null,'Role');rl.htmlFor='np-role';rd.appendChild(rl);rd.appendChild(rs);af.appendChild(rd);
     var ae=el('div','err');ae.setAttribute('role','alert');af.appendChild(ae);
@@ -3810,6 +3813,7 @@ function syncFromItem(){
   if(sb){$('f-cat').value=sb.catId;fillSubs(sb.id);$('w-subnew').hidden=true}
 }
 function setKind(k,pre,keep){
+  if(S.lines&&S.lines.length&&S.kind!==k){S.lines=[];renderLines()}
   S.kind=k;
   document.querySelectorAll('#form .seg button').forEach(function(b){b.setAttribute('aria-pressed',String(b.dataset.kind===k))});
   $('l-item').textContent=k==='income'?'Income name (account)':'Expense name (account)';
@@ -3832,7 +3836,7 @@ function wHint(){
   cbRefresh($('f-item'));cbRefresh($('f-wallet'));postLine();
   var h=$('f-whint'),id=$('f-wallet').value;h.className='hint';h.textContent='';
   if(!id||!W[id])return;
-  var amt=parseFloat($('f-amount').value)||0,old=0;
+  var amt=(parseFloat($('f-amount').value)||0)+(S.editId?0:stagedTotal()),old=0;
   if(S.editId){var oe=E.filter(function(x){return x.id===S.editId})[0];if(oe&&oe.wallet===id)old=oe.kind==='income'?oe.amount:-oe.amount}
   var avail=wBal(id)-old;
   if(S.kind==='expense'){
@@ -3845,36 +3849,67 @@ function openSheet(id){
   $('sheetTitle').textContent=e?'Edit entry':'Add entry';$('f-save').textContent=e?'Save changes':'Save entry';
   $('f-amount').value=e?e.amount:'';$('f-date').value=e?e.date:ymd(new Date());$('f-note').value=e?e.note:'';$('f-err').textContent='';
   $('f-subnew').value='';$('f-itemnew').value='';
+  S.lines=[];$('f-more').hidden=!!e;renderLines();
   setKind(e?e.kind:S.kind,e);
   $('scrim').hidden=false;setTimeout(function(){$('f-amount').focus()},60);
 }
-function closeSheet(){$('scrim').hidden=true;S.editId=null}
+function closeSheet(){$('scrim').hidden=true;S.editId=null;S.lines=[]}
+function stagedTotal(){return (S.lines||[]).reduce(function(t,l){return t+l.amt},0)}
+function renderLines(){
+  var box=$('f-lines'),ls=S.lines||[];box.textContent='';
+  box.hidden=!ls.length;
+  ls.forEach(function(L,i){
+    var r=el('div','r');r.appendChild(el('span','l',(i+1)+'. '+L.label+(L.note?' · '+L.note:'')));
+    r.appendChild(el('b',null,fmt(L.amt)));
+    var x=el('button','x','×');x.type='button';x.setAttribute('aria-label','Remove this item');x.onclick=function(){S.lines.splice(i,1);renderLines();wHint()};r.appendChild(x);box.appendChild(r);
+  });
+  if(ls.length){var t=el('div','r tot');t.appendChild(el('span',null,'Total · '+ls.length+(ls.length===1?' item':' items')));t.appendChild(el('b',null,fmt(stagedTotal())));box.appendChild(t)}
+  $('f-save').textContent=S.editId?'Save changes':(ls.length?'Save '+(ls.length+((parseFloat($('f-amount').value)||0)>0?1:0))+' entries':'Save entry');
+}
+function readLine(err){
+  var amt=parseFloat($('f-amount').value);if(!(amt>0)){err.textContent='Enter an amount greater than zero.';return null}
+  var catId=$('f-cat').value;if(!catId){err.textContent='Add a category first in Chart of Accounts.';return null}
+  var L={amt:amt,catId:catId,subId:$('f-sub').value,itemId:$('f-item').value,note:$('f-note').value.trim()};
+  if(L.subId===NEW){L.subNew=$('f-subnew').value.trim();if(!L.subNew){err.textContent='Type a name for the new sub category.';return null}}
+  if(L.itemId===NEW||S.items.every(function(x){return x.id!==L.itemId})){L.itemId=NEW;L.itemNew=$('f-itemnew').value.trim();if(!L.itemNew){err.textContent='Type a name for this entry, for example “Milk Expense”.';return null}}
+  var ito=I.items[L.itemId];L.label=L.itemNew||(ito?ito.name:'Item');
+  return L;
+}
+function clearLineInputs(){$('f-amount').value='';$('f-note').value='';$('f-itemnew').value=''}
 async function saveEntry(ev){
   ev.preventDefault();var err=$('f-err');err.textContent='';
   if(!S.canWrite){err.textContent='You can view this ledger but not change it.';return}
-  var amt=parseFloat($('f-amount').value);if(!(amt>0)){err.textContent='Enter an amount greater than zero.';return}
   if(!$('f-date').value){err.textContent='Pick a date.';return}
-  var catId=$('f-cat').value;if(!catId){err.textContent='Add a category first in Chart of Accounts.';return}
-  var wal=$('f-wallet').value;
-  var subId=$('f-sub').value,itemId=$('f-item').value,subName,itemName;
+  var lines=S.editId?[]:(S.lines||[]).slice(),curAmt=parseFloat($('f-amount').value);
+  if(S.editId||!lines.length||curAmt>0){var L0=readLine(err);if(!L0)return;lines.push(L0)}
+  var wal=$('f-wallet').value,date=$('f-date').value,done=0,sc={},ic={};
   try{
     $('f-save').disabled=true;
-    if(subId===NEW){var sn=$('f-subnew').value.trim();if(!sn){err.textContent='Type a name for the new sub category.';$('f-save').disabled=false;return}
-      var dup=S.subs.filter(function(x){return x.catId===catId&&x.name.toLowerCase()===sn.toLowerCase()})[0];
-      if(dup)subId=dup.id;else{var rs=await S.db.collection('subs').add({catId:catId,name:sn,ts:Date.now()});subId=rs.id}subName=sn}
-    if(itemId===NEW||S.items.every(function(x){return x.id!==itemId})){var inn=$('f-itemnew').value.trim();if(!inn){err.textContent='Type a name for this entry, for example “Milk Expense”.';$('f-save').disabled=false;return}
-      var dd=S.items.filter(function(x){return x.subId===subId&&x.name.toLowerCase()===inn.toLowerCase()})[0];
-      if(dd)itemId=dd.id;else{var ri=await S.db.collection('items').add({subId:subId,name:inn,ts:Date.now()});itemId=ri.id}itemName=inn}
-    var cn=I.cats[catId],sbo=I.subs[subId],ito=I.items[itemId];
-    var doc={kind:S.kind,amount:amt,date:$('f-date').value,note:$('f-note').value.trim(),catId:catId,subId:subId,itemId:itemId,
-      catName:cn?cn.name:'',subName:subName||(sbo?sbo.name:''),itemName:itemName||(ito?ito.name:''),wallet:wal,by:byWho(),ts:Date.now()};
-    if(S.editId)await S.db.doc('tx/'+S.editId).set(doc);else await S.db.collection('tx').add(doc);
+    for(var i=0;i<lines.length;i++){
+      var L=lines[i],catId=L.catId,subId=L.subId,itemId=L.itemId,subName,itemName;
+      if(subId===NEW){var sn=L.subNew,sk=catId+'|'+sn.toLowerCase();
+        var dup=sc[sk]||(S.subs.filter(function(x){return x.catId===catId&&x.name.toLowerCase()===sn.toLowerCase()})[0]||{}).id;
+        if(dup)subId=dup;else{var rs=await S.db.collection('subs').add({catId:catId,name:sn,ts:Date.now()});subId=rs.id}
+        sc[sk]=subId;subName=sn}
+      if(itemId===NEW){var inn=L.itemNew,ik=subId+'|'+inn.toLowerCase();
+        var dd=ic[ik]||(S.items.filter(function(x){return x.subId===subId&&x.name.toLowerCase()===inn.toLowerCase()})[0]||{}).id;
+        if(dd)itemId=dd;else{var ri=await S.db.collection('items').add({subId:subId,name:inn,ts:Date.now()});itemId=ri.id}
+        ic[ik]=itemId;itemName=inn}
+      var cn=I.cats[catId],sbo=I.subs[subId],ito=I.items[itemId];
+      var doc={kind:S.kind,amount:L.amt,date:date,note:L.note,catId:catId,subId:subId,itemId:itemId,
+        catName:cn?cn.name:'',subName:subName||(sbo?sbo.name:''),itemName:itemName||(ito?ito.name:''),wallet:wal,by:byWho(),ts:Date.now()+i};
+      if(S.editId)await S.db.doc('tx/'+S.editId).set(doc);else await S.db.collection('tx').add(doc);
+      done++;
+    }
     if(wal){S.lastWallet=wal;try{localStorage.setItem('amaan-lastwallet',wal)}catch(e5){}}
-    var d=doc.date;closeSheet();toast(S.editId?'Entry updated':'Entry saved');
+    var d=date,edited=!!S.editId,n=lines.length;closeSheet();toast(edited?'Entry updated':(n>1?n+' entries saved':'Entry saved'));
     if(S.tab==='cats')S.tab='entries';
     var r=rng();if(d<r.from||d>r.to){if(P.mode==='year')P.year=+d.slice(0,4);else if(P.mode==='month'||P.mode==='last3')P.month=d.slice(0,7);else if(P.mode==='custom'){P.from=P.from&&P.from<d?P.from:d;P.to=P.to&&P.to>d?P.to:d}}
     render();
-  }catch(e){err.textContent=e&&e.code==='quota_exceeded'?'Storage is full. Delete old entries to add more.':'Could not save. Check your connection and try again.'}
+  }catch(e){
+    if(!S.editId){S.lines=lines.slice(done);clearLineInputs();renderLines();wHint()}
+    err.textContent=e&&e.code==='quota_exceeded'?'Storage is full. Delete old entries to add more.':(done?'Saved '+done+' of '+lines.length+'. Press Save to retry the rest.':'Could not save. Check your connection and try again.');
+  }
   $('f-save').disabled=false;
 }
 
@@ -4785,7 +4820,8 @@ $('form').addEventListener('submit',saveEntry);
 $('f-cancel').onclick=closeSheet;
 makeSearchable($('f-item'),{ph:'Search or pick an account…'});makeSearchable($('f-wallet'),{ph:'Search cash or bank…'});
 $('gform').addEventListener('submit',saveGV);$('g-cancel').onclick=closeGV;$('g-add').onclick=function(){GL.push({acc:'',dr:'',cr:''});renderGV()};$('gscrim').addEventListener('click',function(e){if(e.target===$('gscrim'))closeGV()});
-$('f-amount').addEventListener('input',wHint);$('f-item').addEventListener('change',wHint);$('f-wallet').addEventListener('change',wHint);
+$('f-more').addEventListener('click',function(){var err=$('f-err');err.textContent='';if(!S.canWrite){err.textContent='You can view this ledger but not change it.';return}var L=readLine(err);if(!L)return;S.lines.push(L);clearLineInputs();renderLines();wHint();$('f-amount').focus()});
+$('f-amount').addEventListener('input',function(){wHint();renderLines()});$('f-amount').addEventListener('input',wHint);$('f-item').addEventListener('change',wHint);$('f-wallet').addEventListener('change',wHint);
 document.querySelectorAll('#vform .seg button').forEach(function(b){b.onclick=function(){setVType(b.dataset.vt,{})}});
 $('vform').addEventListener('submit',saveVMove);$('v-cancel').onclick=closeVMove;
 $('vscrim').addEventListener('click',function(e){if(e.target===$('vscrim'))closeVMove()});
